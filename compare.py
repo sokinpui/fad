@@ -33,6 +33,26 @@ class SSIMComparetor(Comparetor):
         return float(ssim(image_a, image_b, channel_axis=channel_axis))
 
 
+class PixelComparetor(Comparetor):
+    def __init__(self, threshold=30):
+        self.threshold = threshold
+
+    def get_diff_mask(self, image_a: np.ndarray, image_b: np.ndarray) -> np.ndarray:
+        if image_a.shape != image_b.shape:
+            return np.array([])
+
+        diff = np.abs(image_a.astype(np.int16) - image_b.astype(np.int16))
+        return np.any(diff > self.threshold, axis=-1)
+
+    def compare(self, image_a: np.ndarray, image_b: np.ndarray) -> float:
+        mask = self.get_diff_mask(image_a, image_b)
+
+        if mask.size == 0:
+            return 0.0
+
+        return float(np.sum(mask) / mask.size)
+
+
 def compare_image(
     image_a: np.ndarray, image_b: np.ndarray, patch_size: int = 128
 ) -> np.ndarray:
