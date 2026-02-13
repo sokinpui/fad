@@ -1,10 +1,11 @@
-import argparse
 from abc import ABC, abstractmethod
+from concurrent.futures import ProcessPoolExecutor
 from typing import Any
 
-import cv2
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
+
+from image import divide_into_patches
 
 
 class Comparetor(ABC):
@@ -22,37 +23,35 @@ class SSIMComparetor(Comparetor):
         if min_side < 7:
             return 0.0
 
-        channel_axis = 2 if len(image_a.shape) == 3 else None
+        # For an RGB image with shape (256, 256, 3)
+        channel_axis = -1
 
-        # NOTE: range of score
+        # range of score
         # 1.0 perfectly match
         # 0 no structural similarity
         # -1.0 perfectly anti structural
         return float(ssim(image_a, image_b, channel_axis=channel_axis))
 
 
-def run_comparison(baseline_path: str, test_path: str):
+def compare_image(
+    image_a: np.ndarray, image_b: np.ndarray, patch_size: int = 128
+) -> np.ndarray:
+    if image_a is None or image_b is None:
+        return np.array([])
 
-    s = SSIMComparetor()
-    image_a = cv2.imread(baseline_path)
-    image_b = cv2.imread(test_path)
+    if image_a.shape != image_b.shape:
+        return np.array([])
 
-    if image_a is None:
-        print(f"Error: Could not read image at {baseline_path}")
-        return
+    patches_a = divide_into_patches(image_a, patch_size)
+    patches_b = divide_into_patches(image_b, patch_size)
 
-    if image_b is None:
-        print(f"Error: Could not read image at {test_path}")
-        return
+    if not patches_a:
+        return np.array([])
 
-    score = s.compare(image_a, image_b)
-    print(f"SSIM: {score:.6f}")
+    comparator = SSIMComparetor()
 
+    with ProcessPoolExecutor() as executor:
+        scores = list(executor.map(comparator.compare, patches_a, patches_b))
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Compare two images using SSIM.")
-    parser.add_argument("baseline", help="Path to the baseline image")
-    parser.add_argument("test", help="Path to the test image")
-    args = parser.parse_args()
-
-    run_comparison(args.baseline, args.test)
+    rows, cols = image_a.shape[0] // patch_size, image_a.shape[1] // patch_size
+    return np.array(scores).reshape((rows, cols))
