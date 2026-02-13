@@ -1,3 +1,4 @@
+import cv2
 import numpy as np
 from typing import List
 
@@ -54,3 +55,16 @@ def convert_to_oklab(image: np.ndarray) -> np.ndarray:
     ])
 
     return np.dot(lms_non_linear, lms_to_oklab.T)
+
+
+def gaussian_blur(image: np.ndarray, kernel_size: int = 5, sigma: float = 0) -> np.ndarray:
+    if image is None or image.size == 0:
+        return np.array([])
+
+    if kernel_size <= 0:
+        return image
+
+    if kernel_size % 2 == 0:
+        kernel_size += 1
+
+    return cv2.GaussianBlur(image, (kernel_size, kernel_size), sigma)
